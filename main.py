@@ -9,10 +9,12 @@ face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
 screen_w, screen_h = pyautogui.size()
 
 # Blink detection parameters
-blink_threshold = 0.25  # Adjust for your setup
-blink_cooldown = 1.0    # Minimum time between scroll actions in seconds
-last_scroll_time = time.time()
-blink_detected = False  # Tracks if a blink has been detected
+blink_threshold = 0.25  # EAR threshold for a blink
+blink_cooldown = 1.0    # Minimum time between scroll actions (in seconds)
+blink_time_window = 0.5  # Time window to detect double blinks (in seconds)
+last_blink_time = 0
+last_action_time = 0   
+blink_count = 0  # Count blinks within the time window
 
 def calculate_ear(landmarks, eye_indices):
     """Calculate Eye Aspect Ratio (EAR) for given eye landmarks."""
@@ -45,14 +47,23 @@ while True:
         # Blink detection logic
         current_time = time.time()
         if avg_ear < blink_threshold:  # Eyes closed
-            blink_detected = True
-        elif blink_detected and avg_ear >= blink_threshold:  # Eyes opened after blink
-            if current_time - last_scroll_time > blink_cooldown:
-                # Scroll down
-                pyautogui.press('space')
+            if current_time - last_blink_time > 0.2:  # Prevent rapid false positives
+                blink_count += 1
+                last_blink_time = current_time
+                print(f"Blink count: {blink_count}")
+
+        # Handle actions based on blink count
+        if blink_count > 0 and current_time - last_blink_time > blink_time_window:
+            if blink_count == 1:  # Single blink
+                pyautogui.press('space')  # Scroll down
                 print("Scrolled Down")
-                last_scroll_time = current_time
-                blink_detected = False
+            elif blink_count == 2:  # Double blink
+                pyautogui.hotkey('shift', 'space')  # Scroll up
+                print("Scrolled Up")
+
+            # Reset after action
+            last_action_time = current_time
+            blink_count = 0
 
         # Draw eye landmarks for debugging
         for eye_landmark in [33, 133, 362, 263, 159, 145, 386, 374]:
