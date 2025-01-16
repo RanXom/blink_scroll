@@ -9,9 +9,22 @@ face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
 screen_w, screen_h = pyautogui.size()
 
 # Blink detection parameters
-blink_threshold = 0.2  # Adjust based on eye aspect ratio
-blink_cooldown = 1.0   # Minimum time between blinks in seconds
-last_blink_time = time.time()
+blink_threshold = 0.25  # Adjust for your setup
+blink_cooldown = 1.0    # Minimum time between scroll actions in seconds
+last_scroll_time = time.time()
+blink_detected = False  # Tracks if a blink has been detected
+
+def calculate_ear(landmarks, eye_indices):
+    """Calculate Eye Aspect Ratio (EAR) for given eye landmarks."""
+    # Vertical landmarks
+    top = landmarks[eye_indices[0]].y
+    bottom = landmarks[eye_indices[1]].y
+    # Horizontal landmarks
+    left = landmarks[eye_indices[2]].x
+    right = landmarks[eye_indices[3]].x
+    # EAR formula
+    ear = (abs(top - bottom)) / (abs(left - right))
+    return ear
 
 while True:
     _, frame = cam.read()
@@ -24,39 +37,25 @@ while True:
     if landmark_points:
         landmarks = landmark_points[0].landmark
         
-        # Coordinates for left eye landmarks (adjust indices as needed)
-        left_top = landmarks[159]  # Upper eyelid
-        left_bottom = landmarks[145]  # Lower eyelid
-        
-        # Coordinates for right eye landmarks
-        right_top = landmarks[386]
-        right_bottom = landmarks[374]
+        # Calculate EAR for both eyes
+        left_ear = calculate_ear(landmarks, [159, 145, 33, 133])  # Left eye landmarks
+        right_ear = calculate_ear(landmarks, [386, 374, 362, 263])  # Right eye landmarks
+        avg_ear = (left_ear + right_ear) / 2
 
-        # Calculate distances
-        left_eye_distance = abs(left_top.y - left_bottom.y)
-        right_eye_distance = abs(right_top.y - right_bottom.y)
-
-        # Average eye distance to detect blinking
-        avg_eye_distance = (left_eye_distance + right_eye_distance) / 2
-
-        # Detect blink
-        if avg_eye_distance < blink_threshold:
-            current_time = time.time()
-            if current_time - last_blink_time > blink_cooldown:
+        # Blink detection logic
+        current_time = time.time()
+        if avg_ear < blink_threshold:  # Eyes closed
+            blink_detected = True
+        elif blink_detected and avg_ear >= blink_threshold:  # Eyes opened after blink
+            if current_time - last_scroll_time > blink_cooldown:
                 # Scroll down
                 pyautogui.press('space')
                 print("Scrolled Down")
-                last_blink_time = current_time
-        elif avg_eye_distance > blink_threshold:
-            current_time = time.time()
-            if current_time - last_blink_time > blink_cooldown:
-                # Scroll up
-                pyautogui.hotkey('shift', 'space')
-                print("Scrolled Up")
-                last_blink_time = current_time
+                last_scroll_time = current_time
+                blink_detected = False
 
         # Draw eye landmarks for debugging
-        for eye_landmark in [159, 145, 386, 374]:
+        for eye_landmark in [33, 133, 362, 263, 159, 145, 386, 374]:
             x = int(landmarks[eye_landmark].x * frame_w)
             y = int(landmarks[eye_landmark].y * frame_h)
             cv2.circle(frame, (x, y), 3, (0, 255, 0), -1)
