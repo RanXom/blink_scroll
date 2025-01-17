@@ -45,7 +45,7 @@ while True:
         avg_ear = (left_ear + right_ear) / 2
 
         # Blink detection logic
-        current_time = time.time()
+        current_time = time.time()         
         if avg_ear < blink_threshold:  # Eyes closed
             if current_time - last_blink_time > 0.2:  # Prevent rapid false positives
                 blink_count += 1
